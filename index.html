@@ -1,0 +1,99 @@
+<!-- Save as index.html, open in Safari on iOS 26 -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Pocket AI</title>
+  <style>
+    /* paste your CSS here */
+  </style>
+</head>
+<body>
+
+<!-- UI (messages + input) -->
+<div id="status">Loading model...</div>
+<div id="messages"></div>
+<input id="input" placeholder="Ask anything..." disabled />
+<button id="send" onclick="chat()" disabled>Send</button>
+
+<script type="module">
+import { pipeline, env }
+  from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers';
+
+// Use local browser cache — avoids re-downloading
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+const MODEL = 'onnx-community/Qwen2.5-0.5B-Instruct';
+const history = [];
+let generator;
+
+// Load model onto Metal GPU via WebGPU
+async function loadModel() {
+  document.getElementById('status').textContent =
+    'Downloading model (first time only ~300MB)...';
+
+  generator = await pipeline(
+    'text-generation',
+    MODEL,
+    {
+      device: 'webgpu',  // ← maps to Metal on iOS 26
+      dtype: 'q4',       // ← quantized: fits in mobile RAM
+      progress_callback: (p) => {
+        if (p.status === 'progress') {
+          const pct = Math.round(p.progress);
+          document.getElementById('status')
+            .textContent = `Loading... ${pct}%`;
+        }
+      }
+    }
+  );
+
+  document.getElementById('status').textContent =
+    'Ready — running on Metal GPU';
+  document.getElementById('input').disabled = false;
+  document.getElementById('send').disabled = false;
+}
+
+window.chat = async function() {
+  const input = document.getElementById('input');
+  const userText = input.value.trim();
+  if (!userText || !generator) return;
+  input.value = '';
+
+  history.push({ role: 'user', content: userText });
+  addMsg('You', userText);
+
+  const thinkingEl = addMsg('AI', '...');
+
+  const output = await generator(history, {
+    max_new_tokens: 256,
+    do_sample: true,
+    temperature: 0.7,
+    // Stream tokens as they generate:
+    callback_function: (tokens) => {
+      const text = tokens[0].generated_text
+        .at(-1).content;
+      thinkingEl.textContent = text;
+    }
+  });
+
+  const reply = output[0].generated_text.at(-1).content;
+  history.push({ role: 'assistant', content: reply });
+  thinkingEl.textContent = reply;
+};
+
+function addMsg(from, text) {
+  const msgs = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.innerHTML = `<b>${from}:</b> <span>${text}</span>`;
+  msgs.appendChild(el);
+  return el.querySelector('span');
+}
+
+loadModel();
+</script>
+</body>
+</html>
