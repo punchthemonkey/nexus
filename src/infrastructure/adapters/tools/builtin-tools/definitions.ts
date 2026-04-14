@@ -47,7 +47,7 @@ export const fetchPageTool: ToolDefinition = {
   }
 };
 
-// jsExecTool removed per Fragment 12
+// js_exec removed per Fragment 12
 export const builtinTools: ToolDefinition[] = [
   calculatorTool,
   webSearchTool,
