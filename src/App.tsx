@@ -4,10 +4,6 @@ import { ChatView } from '@/ui/components/ChatView/ChatView';
 import { ModelLoader } from '@/ui/components/ModelLoader';
 import { DebugOverlay } from '@/ui/components/DebugOverlay/DebugOverlay';
 import { useLocalLLM } from '@/ui/hooks/useLocalLLM';
-import { container } from '@/application/container';
-import { IndexedDBAdapter } from '@/infrastructure/adapters/storage/IndexedDBAdapter';
-import { ThermalMonitor } from '@/infrastructure/monitoring/ThermalMonitor';
-import { TabCoordinator } from '@/infrastructure/coordination/TabCoordinator';
 
 export function App() {
   const [containerReady, setContainerReady] = useState(false);
@@ -26,14 +22,7 @@ export function App() {
   }
 
   if (status.value !== 'ready') {
-    return (
-      <ModelLoader
-        status={status.value}
-        progress={progress.value}
-        error={error.value}
-        onRetry={initialize}
-      />
-    );
+    return <ModelLoader status={status.value} progress={progress.value} error={error.value} onRetry={initialize} />;
   }
 
   return (
