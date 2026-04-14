@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { container } from 'tsyringe';
-import { EventBus, IEventBus } from './event-bus';
+import { EventBus } from './event-bus';
 import { ILLMProvider } from '@/domain/ports/ILLMProvider';
 import { IMemoryStore } from '@/domain/ports/IMemoryStore';
 import { IToolExecutor } from '@/domain/ports/IToolExecutor';
@@ -10,7 +10,6 @@ import { OpenAIAdapter } from '@/infrastructure/adapters/llm/providers/OpenAIAda
 import { AnthropicAdapter } from '@/infrastructure/adapters/llm/providers/AnthropicAdapter';
 import { GeminiAdapter } from '@/infrastructure/adapters/llm/providers/GeminiAdapter';
 import { IndexedDBAdapter } from '@/infrastructure/adapters/storage/IndexedDBAdapter';
-import { TursoSyncAdapter } from '@/infrastructure/adapters/storage/TursoSyncAdapter';
 import { ToolExecutorAdapter } from '@/infrastructure/adapters/tools/ToolExecutorAdapter';
 import { WebCryptoKeychain } from '@/infrastructure/adapters/keychain/WebCryptoKeychain';
 import { Orchestrator } from '@/domain/orchestrator/Orchestrator';
@@ -21,19 +20,19 @@ import { ThermalMonitor } from '@/infrastructure/monitoring/ThermalMonitor';
 import { AdaptiveScheduler } from '@/infrastructure/monitoring/AdaptiveScheduler';
 import { TabCoordinator } from '@/infrastructure/coordination/TabCoordinator';
 import { Profiler } from '@/infrastructure/monitoring/Profiler';
-import { getTursoConfig } from '@/infrastructure/config/turso.config';
+import { selfModifySkill } from '@/domain/skills/SelfModifySkill';
 
 export async function initializeContainer(): Promise<void> {
   // EventBus
   const eventBus = new EventBus();
-  container.registerInstance<IEventBus>('EventBus', eventBus);
+  container.registerInstance('EventBus', eventBus);
 
   // Keychain
   const keychain = new WebCryptoKeychain();
   await keychain.initialize();
-  container.registerInstance<IKeychain>('IKeychain', keychain);
+  container.registerInstance('IKeychain', keychain);
 
-  // Local LLM (default)
+  // Local LLM
   const localLLM = new LocalLLMAdapter();
   container.registerInstance('LocalLLMAdapter', localLLM);
   container.registerInstance<ILLMProvider>('ILLMProvider', localLLM);
@@ -42,15 +41,7 @@ export async function initializeContainer(): Promise<void> {
   const indexedDB = new IndexedDBAdapter();
   await indexedDB.initialize();
   container.registerInstance('IndexedDBAdapter', indexedDB);
-
-  const tursoConfig = getTursoConfig();
-  let memoryStore: IMemoryStore = indexedDB;
-  if (tursoConfig) {
-    const tursoAdapter = new TursoSyncAdapter(indexedDB, eventBus);
-    await tursoAdapter.initialize(tursoConfig);
-    memoryStore = tursoAdapter;
-  }
-  container.registerInstance<IMemoryStore>('IMemoryStore', memoryStore);
+  container.registerInstance<IMemoryStore>('IMemoryStore', indexedDB);
 
   // Tool Executor
   const toolExecutor = new ToolExecutorAdapter();
@@ -62,19 +53,21 @@ export async function initializeContainer(): Promise<void> {
   container.registerSingleton(TabCoordinator);
   container.registerSingleton(Profiler);
 
-  // Application services
+  // ProviderSelector
   container.register(ProviderSelector);
+
+  // Orchestrator
   container.register(Orchestrator);
-  container.registerSingleton(StruggleLogger);
-  
-  // Initialize StruggleLogger (rehydrate logs)
-  const logger = container.resolve(StruggleLogger);
-  await logger.initialize();
 
   // Skills
-  const skillRegistry = new SkillRegistry(memoryStore);
+  const skillRegistry = new SkillRegistry(indexedDB);
   await skillRegistry.initialize();
+  await skillRegistry.install(selfModifySkill); // Fragment 12 requirement
   container.registerInstance(SkillRegistry, skillRegistry);
+
+  // StruggleLogger
+  const struggleLogger = container.resolve(StruggleLogger);
+  await struggleLogger.initialize();
 
   // LLM Provider Factory
   container.registerFactory<ILLMProvider>('LLMProviderFactory', (c) => {
