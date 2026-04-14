@@ -27,7 +27,6 @@ export function useLocalLLM() {
   };
 
   useEffect(() => {
-    // Auto-initialize when hook mounts
     initialize();
   }, []);
 
