@@ -27,7 +27,7 @@
     "reflect-metadata": "^0.2.0",
     "tsyringe": "^4.8.0",
     "zod": "^3.22.0"
-},
+  },
   "devDependencies": {
     "@playwright/test": "^1.45.0",
     "@preact/preset-vite": "^2.10.0",
