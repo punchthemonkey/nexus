@@ -1,4 +1,3 @@
-cat > package.json << 'EOF'
 {
   "name": "nexus",
   "private": true,
