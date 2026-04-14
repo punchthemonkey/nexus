@@ -1,10 +1,3 @@
-// Whitelist of allowed globals
-const ALLOWED_GLOBALS = new Set([
-  'console', 'JSON', 'Math', 'Date', 'Array', 'Object', 'String',
-  'Number', 'Boolean', 'Promise', 'Error', 'TypeError', 'RangeError',
-  'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'fetch'
-]);
-
 interface WorkerMessage {
   id: string;
   tool: string;
@@ -17,10 +10,9 @@ interface WorkerResponse {
   error?: string;
 }
 
-// Built-in tool implementations (js_exec removed per Fragment 12)
 const tools: Record<string, (args: any) => Promise<any>> = {
   calculator: async (args) => {
-    const expr = args.expression as string;
+    const expr = args.expression;
     if (!/^[0-9+\-*/().\s]+$/.test(expr)) {
       throw new Error('Invalid characters in expression');
     }
@@ -28,8 +20,8 @@ const tools: Record<string, (args: any) => Promise<any>> = {
     return { result };
   },
   web_search: async (args) => {
-    const query = args.query as string;
-    const maxResults = (args.maxResults as number) || 5;
+    const query = args.query;
+    const maxResults = args.maxResults || 5;
     const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`);
     const data = await response.json();
     const results = (data.Results || []).slice(0, maxResults).map((r: any) => ({
@@ -39,15 +31,15 @@ const tools: Record<string, (args: any) => Promise<any>> = {
     return { query, results };
   },
   fetch_page: async (args) => {
-    const url = args.url as string;
-    const mode = (args.extractMode as string) || 'text';
+    const url = args.url;
+    const mode = args.extractMode || 'text';
     const response = await fetch(url);
     const html = await response.text();
     if (mode === 'html') return { url, content: html };
     const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     return { url, content: text.slice(0, 5000) };
   },
-  // js_exec removed per Fragment 12 security fix
+  // js_exec removed per Fragment 12
 };
 
 self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
